@@ -2,6 +2,7 @@ package tapo
 
 import (
 	"crypto/rsa"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -57,8 +58,8 @@ type DeviceInfo struct {
 	OemID              string  `json:"oem_id"`
 	IP                 string  `json:"ip"`
 	TimeDiff           int     `json:"time_diff"`
-	Ssid               string  `json:"ssid"`
-	Rssi               int     `json:"rssi"`
+	SSID               string  `json:"ssid"`
+	RSSI               int     `json:"rssi"`
 	SignalLevel        int     `json:"signal_level"`
 	Latitude           float64 `json:"latitude"`
 	Longitude          float64 `json:"longitude"`
@@ -108,7 +109,30 @@ func (session *Session) GetDeviceInfo() (*DeviceInfo, error) {
 	}{}
 
 	err := session.Post(message{Method: "get_device_info"}, &resp)
-	return &resp.Result, err
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Nickname and SSID are base64 encoded.
+	resp.Result.Nickname = decodeBase64(resp.Result.Nickname)
+	resp.Result.SSID = decodeBase64(resp.Result.SSID)
+
+	// Lat / Lng are degrees*10000
+	resp.Result.Latitude /= 10_000
+	resp.Result.Longitude /= 10_000
+
+	return &resp.Result, nil
+}
+
+func decodeBase64(s string) string {
+	if s != "" {
+		if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+			return string(b)
+		}
+	}
+
+	return s
 }
 
 func (session *Session) GetEnergyUsage() (*EnergyUsage, error) {
